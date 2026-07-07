@@ -1,0 +1,2974 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD Editor · AI Files</title>
+
+<!-- CodeMirror 5 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/continuelist.min.js"></script>
+
+<!-- marked + highlight.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+
+<style>
+/* ===== VARIABLES ===== */
+:root {
+  --bg:         #0d1117;
+  --bg-side:    #161b22;
+  --bg-tab:     #1c2128;
+  --bg-bar:     #161b22;
+  --border:     #30363d;
+  --text:       #e6edf3;
+  --muted:      #8b949e;
+  --faint:      #484f58;
+  --accent:     #58a6ff;
+  --accent2:    #79b8ff;
+  --danger:     #f85149;
+  --ok:         #3fb950;
+  --warn:       #d29922;
+  --ui:         -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono:       'Cascadia Code','JetBrains Mono','Fira Code',monospace;
+}
+
+/* ===== RESET ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: var(--ui); background: var(--bg); color: var(--text); font-size: 13px; }
+button { font-family: var(--ui); cursor: pointer; }
+input { font-family: var(--ui); }
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+/* ===== LAYOUT ===== */
+#app { display: flex; height: 100vh; }
+
+/* ===== SIDEBAR ===== */
+#sidebar {
+  width: 280px;
+  min-width: 160px;
+  max-width: 520px;
+  background: var(--bg-side);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sb-top {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+#btn-open {
+  width: 100%;
+  padding: 7px 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background .15s;
+}
+#btn-open:hover { background: var(--accent2); }
+
+.sb-actions {
+  display: flex;
+  gap: 5px;
+}
+.sb-btn-sm {
+  flex: 1;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  transition: all .15s;
+}
+.sb-btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+.search-row {
+  position: relative;
+}
+.search-row .ico {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  pointer-events: none;
+}
+#search-input, #folder-filter-input {
+  width: 100%;
+  padding: 6px 8px 6px 26px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+#search-input:focus, #folder-filter-input:focus { border-color: var(--accent); }
+#search-input::placeholder, #folder-filter-input::placeholder { color: var(--faint); }
+
+.mode-pills {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.mode-pill {
+  flex: 1;
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  transition: all .15s;
+}
+.mode-pill.active { background: var(--accent); color: #fff; }
+
+.sb-root-label {
+  padding: 5px 10px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  display: none;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+/* ===== COPY BUTTON on file rows ===== */
+.t-file { position: relative; padding-right: 4px; }
+.t-copy {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+  cursor: pointer;
+  padding: 0;
+}
+.t-file:hover .t-copy, .t-dir:hover .t-copy { display: flex; }
+.t-copy:hover  { background: rgba(88,166,255,.15); color: var(--accent); }
+.t-copy.ok     { color: var(--ok) !important; }
+
+.t-graph {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+  cursor: pointer;
+  padding: 0;
+}
+.t-dir:hover .t-graph { display: flex; }
+.t-graph:hover { background: rgba(188,140,255,.15); color: #bc8cff; }
+
+.t-rename {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+  cursor: pointer;
+  padding: 0;
+}
+.t-file:hover .t-rename { display: flex; }
+.t-rename:hover { background: rgba(210,153,34,.15); color: var(--warn); }
+
+.t-del {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+  cursor: pointer;
+  padding: 0;
+}
+.t-file:hover .t-del { display: flex; }
+.t-del:hover { background: rgba(248,81,73,.15); color: var(--danger); }
+
+#file-tree, #search-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+#search-results { display: none; }
+
+/* ===== TREE ===== */
+.t-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  margin: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--text);
+  transition: background .1s;
+}
+.t-item:hover { background: rgba(255,255,255,.06); }
+.t-item.active { background: rgba(88,166,255,.15); color: var(--accent); }
+.t-item .t-name { overflow: hidden; text-overflow: ellipsis; }
+.t-item .t-dot { margin-left: 3px; color: var(--warn); font-size: 8px; line-height: 1; }
+
+.t-dir .chevron { transition: transform .15s; flex-shrink: 0; }
+.t-dir.closed .chevron { transform: rotate(-90deg); }
+.t-children { padding-left: 14px; }
+
+.empty-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 10px;
+  color: var(--faint);
+  padding: 20px;
+  text-align: center;
+}
+.empty-tree p { font-size: 12px; line-height: 1.6; }
+
+/* ===== SEARCH RESULTS ===== */
+.sr-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(48,54,61,.5);
+  transition: background .1s;
+}
+.sr-item:hover { background: rgba(255,255,255,.04); }
+.sr-file { font-size: 12px; color: var(--accent); font-weight: 500; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-dir { font-size: 10px; color: var(--faint); }
+.sr-lines { font-size: 11px; color: var(--muted); }
+.sr-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 0; }
+.sr-line mark { background: rgba(210,153,34,.35); color: var(--warn); border-radius: 2px; padding: 0 1px; }
+.sr-empty { padding: 20px; text-align: center; color: var(--faint); font-size: 12px; }
+
+/* ===== RESIZE HANDLE ===== */
+#rhandle {
+  width: 4px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  background: transparent;
+  transition: background .15s;
+  z-index: 10;
+}
+#rhandle:hover, #rhandle.drag { background: var(--accent); }
+
+/* ===== MAIN ===== */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+/* ===== TABS ===== */
+#tabs-bar {
+  height: 38px;
+  background: var(--bg-tab);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+#tabs-bar::-webkit-scrollbar { height: 3px; }
+
+.tab {
+  height: 36px;
+  padding: 0 6px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-tab);
+  border-right: 1px solid var(--border);
+  border-top: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: background .1s, color .1s;
+  max-width: 200px;
+}
+.tab:hover { background: rgba(255,255,255,.04); color: var(--text); }
+.tab.active { background: var(--bg); color: var(--text); border-top-color: var(--accent); }
+.tab-name { overflow: hidden; text-overflow: ellipsis; }
+.tab-dot { color: var(--warn); font-size: 9px; }
+.tab-x {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--faint);
+  transition: all .1s;
+  flex-shrink: 0;
+}
+.tab-x:hover { background: rgba(248,81,73,.25); color: var(--danger); }
+
+/* ===== TOOLBAR ===== */
+#toolbar {
+  height: 42px;
+  background: var(--bg-bar);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+#breadcrumb { flex: 1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#breadcrumb strong { color: var(--text); }
+#breadcrumb .sep { color: var(--faint); }
+
+.view-btns {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.view-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  transition: all .15s;
+}
+.view-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
+.view-btn.on { background: var(--accent); color: #fff; }
+
+#btn-save {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all .15s;
+}
+#btn-save:hover { border-color: var(--ok); color: var(--ok); }
+#btn-save.dirty { border-color: var(--warn); color: var(--warn); }
+
+/* ===== EDITOR CONTAINER ===== */
+#editor-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Welcome (no file open) */
+#welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--muted);
+}
+#welcome h2 { color: var(--text); font-size: 18px; font-weight: 500; }
+#welcome p { font-size: 12.5px; }
+.shortcuts { display: flex; flex-direction: column; gap: 5px; text-align: center; font-size: 12px; color: var(--faint); }
+kbd {
+  background: var(--bg-bar);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#editor-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+#preview-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+/* CodeMirror fill */
+#editor-pane .CodeMirror {
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.65;
+  border: none;
+}
+#editor-pane .CodeMirror-scroll { padding-bottom: 40px; }
+
+/* View modes */
+#editor-container.v-edit   #preview-pane { display: none; }
+#editor-container.v-edit   #editor-pane  { border-right: none; }
+#editor-container.v-prev   #editor-pane  { display: none; }
+#editor-container.v-prev   #preview-pane { border-left: none; }
+
+/* ===== GRAPH VIEW (estilo Obsidian) ===== */
+#editor-container.v-graph #editor-pane,
+#editor-container.v-graph #preview-pane,
+#editor-container.v-graph #welcome { display: none !important; }
+#graph-pane {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  display: none;
+  overflow: hidden;
+}
+#editor-container.v-graph #graph-pane { display: block; }
+#graph-canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+#graph-canvas.grabbing { cursor: grabbing; }
+.graph-hud {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-size: 11px;
+  color: var(--faint);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  user-select: none;
+}
+.graph-hud .lg { display: flex; align-items: center; gap: 6px; }
+.graph-hud .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+/* Graph: menu de personalização */
+#graph-gear {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--bg-side);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  transition: all .15s;
+}
+#graph-gear:hover { border-color: var(--accent); color: var(--accent); }
+#graph-menu {
+  position: absolute;
+  top: 48px;
+  right: 12px;
+  width: 220px;
+  background: var(--bg-side);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  z-index: 20;
+}
+#graph-menu h4 { font-size: 12px; font-weight: 600; color: var(--text); }
+.gm-label { color: var(--muted); font-size: 11px; }
+.gm-pills {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.gm-pill {
+  flex: 1;
+  padding: 5px 6px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  transition: all .15s;
+}
+.gm-pill:hover { color: var(--text); }
+.gm-pill.active { background: var(--accent); color: #fff; }
+.gm-select {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--ui);
+  outline: none;
+  cursor: pointer;
+}
+.gm-select:focus { border-color: var(--accent); }
+.gm-input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+.gm-input:focus { border-color: var(--accent); }
+.gm-input::placeholder { color: var(--faint); }
+.gm-group { display: flex; flex-direction: column; gap: 8px; }
+.gm-slider { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 11px; }
+.gm-slider input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.gm-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  user-select: none;
+}
+.gm-check input { accent-color: var(--accent); cursor: pointer; }
+.gm-reset {
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11.5px;
+  transition: all .15s;
+}
+.gm-reset:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ===== PREVIEW STYLES ===== */
+#preview-body {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 28px 36px 60px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text);
+}
+#preview-body h1,#preview-body h2,#preview-body h3,
+#preview-body h4,#preview-body h5,#preview-body h6 {
+  margin: 1.3em 0 .45em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+#preview-body h1 { font-size: 2em; border-bottom: 1px solid var(--border); padding-bottom: .3em; margin-top: .5em; }
+#preview-body h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+#preview-body h3 { font-size: 1.2em; }
+#preview-body p  { margin: 0 0 1em; }
+#preview-body a  { color: var(--accent); text-decoration: none; }
+#preview-body a:hover { text-decoration: underline; }
+#preview-body ul, #preview-body ol { margin: 0 0 1em; padding-left: 2em; }
+#preview-body li { margin: .3em 0; }
+#preview-body li p { margin: 0; }
+#preview-body code {
+  background: rgba(110,118,129,.15);
+  border-radius: 4px;
+  padding: .15em .4em;
+  font-family: var(--mono);
+  font-size: .88em;
+}
+#preview-body pre {
+  background: #161b22;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  margin: 0 0 1.2em;
+}
+#preview-body pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  border-radius: 0;
+}
+#preview-body blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 4px 16px;
+  color: var(--muted);
+  margin: 0 0 1em;
+  background: rgba(88,166,255,.04);
+  border-radius: 0 4px 4px 0;
+}
+#preview-body table { border-collapse: collapse; width: 100%; margin: 0 0 1.2em; }
+#preview-body th, #preview-body td { border: 1px solid var(--border); padding: 7px 14px; }
+#preview-body th { background: var(--bg-side); font-weight: 600; }
+#preview-body tr:nth-child(even) { background: rgba(255,255,255,.02); }
+#preview-body img { max-width: 100%; border-radius: 6px; }
+#preview-body hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+#preview-body input[type="checkbox"] { margin-right: 6px; cursor: pointer; }
+#preview-body strong { font-weight: 600; }
+#preview-body em { font-style: italic; }
+#preview-body del { text-decoration: line-through; color: var(--muted); }
+
+/* ===== STATUS BAR ===== */
+#status {
+  height: 26px;
+  background: #1f2937;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+#status span { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+#s-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#s-save.dirty { color: var(--warn); }
+#s-save.saved { color: var(--ok); }
+
+/* ===== NOTIFICATION ===== */
+#notif {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 9999;
+  display: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  animation: fadein .2s;
+}
+@keyframes fadein { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform: none; } }
+#notif.ok  { background: var(--ok);     color: #fff; }
+#notif.err { background: var(--danger); color: #fff; }
+#notif.inf { background: var(--accent); color: #fff; }
+
+/* ===== DIALOGS ===== */
+#new-file-overlay,
+#rename-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#new-file-dialog,
+#rename-dialog {
+  background: var(--bg-side);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#new-file-dialog h3 { font-size: 14px; font-weight: 600; }
+#new-file-input,
+#rename-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  font-family: var(--mono);
+}
+#new-file-input:focus,
+#rename-input:focus { border-color: var(--accent); }
+.dialog-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.dialog-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  transition: all .15s;
+}
+.dialog-btn:hover { color: var(--text); border-color: var(--muted); }
+.dialog-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.dialog-btn.primary:hover { background: var(--accent2); }
+
+/* ===== UTILITY SCORE BADGES ===== */
+.t-score {
+  font-size: 9px;
+  line-height: 12px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-weight: 600;
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.t-score.high { background: rgba(63, 185, 80, 0.15); color: var(--ok); border: 1px solid rgba(63, 185, 80, 0.25); }
+.t-score.med  { background: rgba(210, 153, 34, 0.15); color: var(--warn); border: 1px solid rgba(210, 153, 34, 0.25); }
+.t-score.low  { background: rgba(248, 81, 73, 0.15); color: var(--danger); border: 1px solid rgba(248, 81, 73, 0.25); }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===== SIDEBAR ===== -->
+  <div id="sidebar">
+    <div class="sb-top">
+      <button id="btn-open" onclick="openFolder()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1.75 1h5.5a.75.75 0 0 1 .524.215l1.72 1.68H14.25c.966 0 1.75.784 1.75 1.75v7.75A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-9.5C0 1.784.784 1 1.75 1Z"/>
+        </svg>
+        Abrir Pasta
+      </button>
+
+      <div class="sb-actions">
+        <button class="sb-btn-sm" onclick="refreshTree()" title="Recarregar arquivos">↺ Recarregar</button>
+        <button class="sb-btn-sm" onclick="showNewFileDialog()" title="Novo arquivo .md">＋ Novo .md</button>
+      </div>
+
+      <div class="search-row">
+        <svg class="ico" width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-1.06 1.06Zm-5.68.26a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/>
+        </svg>
+        <input id="search-input" type="text" placeholder="Buscar..." oninput="handleSearch(this.value)">
+      </div>
+
+      <div class="search-row">
+        <svg class="ico" width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1.75 1h5.5a.75.75 0 0 1 .524.215l1.72 1.68H14.25c.966 0 1.75.784 1.75 1.75v7.75A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-9.5C0 1.784.784 1 1.75 1Z"/>
+        </svg>
+        <input id="folder-filter-input" type="text" placeholder="Filtrar pastas..." oninput="handleFolderFilter(this.value)">
+      </div>
+
+      <div class="mode-pills">
+        <button class="mode-pill active" data-mode="files" onclick="setSearchMode('files')">📄 Arquivos</button>
+        <button class="mode-pill" data-mode="content" onclick="setSearchMode('content')">🔍 Conteúdo</button>
+      </div>
+    </div>
+
+    <div class="sb-root-label" id="root-label">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="var(--warn)" style="flex-shrink:0">
+        <path d="M1.75 1h5.5a.75.75 0 0 1 .524.215l1.72 1.68H14.25c.966 0 1.75.784 1.75 1.75v7.75A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-9.5C0 1.784.784 1 1.75 1Z"/>
+      </svg>
+      <span id="root-name">—</span>
+    </div>
+
+    <div id="file-tree">
+      <div class="empty-tree">
+        <svg width="38" height="38" viewBox="0 0 16 16" fill="currentColor" style="opacity:.3">
+          <path d="M1.75 1h5.5a.75.75 0 0 1 .524.215l1.72 1.68H14.25c.966 0 1.75.784 1.75 1.75v7.75A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-9.5C0 1.784.784 1 1.75 1Z"/>
+        </svg>
+        <p>Clique em <strong>Abrir Pasta</strong> para carregar seus arquivos <code>.md</code></p>
+      </div>
+    </div>
+
+    <div id="search-results"></div>
+  </div>
+
+  <!-- ===== RESIZE ===== -->
+  <div id="rhandle"></div>
+
+  <!-- ===== MAIN ===== -->
+  <div id="main">
+
+    <div id="tabs-bar"></div>
+
+    <div id="toolbar">
+      <div id="breadcrumb">Nenhum arquivo aberto</div>
+      <div class="view-btns">
+        <button class="view-btn" id="vb-edit"    onclick="setView('edit')">Editar</button>
+        <button class="view-btn on" id="vb-split" onclick="setView('split')">Split</button>
+        <button class="view-btn" id="vb-prev"    onclick="setView('prev')">Preview</button>
+        <button class="view-btn" id="vb-graph"   onclick="setView('graph')">◉ Grafo</button>
+      </div>
+      <button id="btn-save" onclick="saveActive()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.75 3a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h14.5a.75.75 0 0 0 .75-.75V3.75a.75.75 0 0 0-.75-.75h-3.5v5a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V3H.75ZM5 3v4.5h6V3H5Zm5.5-1.5v-1A.5.5 0 0 0 10 0H6a.5.5 0 0 0-.5.5v1h5Z"/>
+        </svg>
+        Salvar
+      </button>
+    </div>
+
+    <div id="editor-container" class="v-split">
+
+      <!-- No file open -->
+      <div id="welcome">
+        <svg width="44" height="44" viewBox="0 0 16 16" fill="currentColor" style="opacity:.25">
+          <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h3.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-3.5a2.25 2.25 0 0 0-2.25 2.25.75.75 0 0 1-1.5 0A2.25 2.25 0 0 0 4.75 13H1.254a.75.75 0 0 1-.75-.75Zm7.75 2.808v7.121A3.75 3.75 0 0 1 11 10.5h2.5V2.5h-2.494a2.25 2.25 0 0 0-2.252 2.058Zm-1.5 7.121V4.558A2.25 2.25 0 0 0 4 2.5H1.5V10.5H4a3.75 3.75 0 0 1 2.25.679Z"/>
+        </svg>
+        <h2>MD Editor</h2>
+        <p>Abra uma pasta e selecione um arquivo para começar</p>
+        <div class="shortcuts">
+          <div><kbd>Ctrl+S</kbd> Salvar &nbsp;&nbsp; <kbd>Ctrl+W</kbd> Fechar tab</div>
+          <div><kbd>Ctrl+Shift+E</kbd> Editar &nbsp;&nbsp; <kbd>Ctrl+Shift+P</kbd> Preview &nbsp;&nbsp; <kbd>Ctrl+Shift+S</kbd> Split &nbsp;&nbsp; <kbd>Ctrl+Shift+G</kbd> Grafo</div>
+        </div>
+      </div>
+
+      <!-- Editor (CodeMirror) -->
+      <div id="editor-pane" style="display:none">
+        <textarea id="cm-ta"></textarea>
+      </div>
+
+      <!-- Preview -->
+      <div id="preview-pane" style="display:none">
+        <div id="preview-body"></div>
+      </div>
+
+      <!-- Graph (estilo Obsidian) -->
+      <div id="graph-pane">
+        <canvas id="graph-canvas"></canvas>
+        <div class="graph-hud">
+          <div class="lg"><span class="dot" style="background:#bc8cff"></span> raiz</div>
+          <div class="lg"><span class="dot" style="background:#e3b341"></span> pasta</div>
+          <div class="lg"><span class="dot" style="background:#58a6ff"></span> arquivo .md</div>
+          <div class="lg">tamanho do círculo = volume de conteúdo</div>
+          <div class="lg" style="margin-top:4px">scroll: zoom · arrastar fundo: mover · clique: abrir · 2x clique: editar</div>
+        </div>
+
+        <button id="graph-gear" title="Personalizar grafo" onclick="gvToggleMenu()">⚙</button>
+        <div id="graph-menu">
+          <h4>Personalizar grafo</h4>
+          <div>
+            <span class="gm-label">Filtrar pastas</span>
+            <input type="text" id="gs-filter" class="gm-input" placeholder="nome da pasta..." oninput="gvFilter(this.value)">
+          </div>
+          <div>
+            <span class="gm-label">Layout</span>
+            <select id="gs-layout" class="gm-select" onchange="gvSetLayout(this.value)">
+              <option value="radial">◉ Radial (força)</option>
+              <option value="pyramid">▲ Pirâmide</option>
+              <option value="radialtree">✺ Árvore radial</option>
+              <option value="circle">○ Círculo</option>
+              <option value="htree">→ Árvore horizontal</option>
+              <option value="grid">▦ Grade</option>
+            </select>
+          </div>
+          <label class="gm-slider">Repulsão entre nós
+            <input type="range" id="gs-rep" min="0" max="4000" step="50" oninput="gvOpt('repulsion', +this.value)">
+          </label>
+          <div class="gm-group" id="gm-radial">
+            <label class="gm-slider">Distância dos links
+              <input type="range" id="gs-dist" min="40" max="260" step="5" oninput="gvOpt('linkDist', +this.value)">
+            </label>
+          </div>
+          <div class="gm-group" id="gm-pyramid" style="display:none">
+            <label class="gm-slider">Espaçamento horizontal
+              <input type="range" id="gs-gapx" min="30" max="180" step="5" oninput="gvOpt('gapX', +this.value)">
+            </label>
+            <label class="gm-slider">Espaçamento vertical
+              <input type="range" id="gs-gapy" min="50" max="220" step="5" oninput="gvOpt('gapY', +this.value)">
+            </label>
+          </div>
+          <label class="gm-check">
+            <input type="checkbox" id="gs-links" onchange="gvOpt('showLinks', this.checked)"> Links entre arquivos
+          </label>
+          <label class="gm-check">
+            <input type="checkbox" id="gs-labels" onchange="gvOpt('labels', this.checked)"> Rótulos sempre visíveis
+          </label>
+          <button class="gm-reset" onclick="gvResetView()">⌖ Recentralizar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="status">
+      <span id="s-path">Pronto</span>
+      <span id="s-stats">—</span>
+      <span id="s-save"></span>
+    </div>
+  </div>
+</div>
+
+<!-- New file dialog -->
+<div id="new-file-overlay" onclick="if(event.target===this)closeNewFileDialog()">
+  <div id="new-file-dialog">
+    <h3>📄 Novo arquivo Markdown</h3>
+    <input id="new-file-input" type="text" placeholder="nome-do-arquivo.md" onkeydown="if(event.key==='Enter')createNewFile()">
+    <div class="dialog-btns">
+      <button class="dialog-btn" onclick="closeNewFileDialog()">Cancelar</button>
+      <button class="dialog-btn primary" onclick="createNewFile()">Criar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename dialog -->
+<div id="rename-overlay" onclick="if(event.target===this)closeRenameDialog()">
+  <div id="rename-dialog">
+    <h3>✏️ Renomear arquivo</h3>
+    <input id="rename-input" type="text" spellcheck="false" onkeydown="if(event.key==='Enter')confirmRename();if(event.key==='Escape')closeRenameDialog()">
+    <div class="dialog-btns">
+      <button class="dialog-btn" onclick="closeRenameDialog()">Cancelar</button>
+      <button class="dialog-btn primary" onclick="confirmRename()">Renomear</button>
+    </div>
+  </div>
+</div>
+
+<div id="notif"></div>
+
+<script>
+'use strict';
+
+// ============================================================
+//  STATE
+// ============================================================
+const S = {
+  rootHandle: null,
+  rootName:   '',
+  tree:       [],         // nested [{type,name,path,handle,children?,collapsed?}]
+  idx:        {},         // path -> {handle, content, name}
+  tabs:       [],         // [{path, dirty}]
+  active:     null,       // active path
+  view:       'split',    // 'edit'|'split'|'prev'
+  searchMode: 'files',
+  editor:     null,
+  _noChange:  false,      // suppress change event during load
+  folderFilter: '',
+  nonMdActivity: {},      // path -> lastModified
+};
+
+// ============================================================
+//  INIT
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  // Configure marked
+  marked.use({
+    gfm: true,
+    breaks: false,
+    renderer: buildRenderer(),
+  });
+
+  // Init CodeMirror
+  S.editor = CodeMirror.fromTextArea(document.getElementById('cm-ta'), {
+    mode: { name: 'markdown', highlightFormatting: true },
+    theme: 'dracula',
+    lineNumbers: true,
+    lineWrapping: true,
+    extraKeys: {
+      'Enter':          'newlineAndIndentContinueMarkdownList',
+      'Ctrl-S':         () => saveActive(),
+      'Ctrl-W':         () => closeActiveTab(),
+      'Ctrl-Shift-E':   () => setView('edit'),
+      'Ctrl-Shift-P':   () => setView('prev'),
+      'Ctrl-Shift-S':   () => setView('split'),
+    },
+    tabSize: 2,
+    indentWithTabs: false,
+  });
+
+  S.editor.on('change', () => {
+    if (S._noChange || !S.active) return;
+    const tab = S.tabs.find(t => t.path === S.active);
+    if (tab && !tab.dirty) {
+      tab.dirty = true;
+      renderTabs();
+      setSaveDirty(true);
+    }
+    debouncedPreview();
+    updateStats();
+  });
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveActive(); }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); setView('graph'); }
+  });
+
+  initResize();
+
+  if (!('showDirectoryPicker' in window)) {
+    notify('⚠️ Este browser não suporta File System Access API. Use Chrome 86+ ou Edge.', 'err', 6000);
+  }
+});
+
+// ============================================================
+//  MARKED RENDERER (with hljs)
+// ============================================================
+function buildRenderer() {
+  const r = new marked.Renderer();
+  r.code = (code, lang) => {
+    const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
+    const highlighted = hljs.highlight(code, { language }).value;
+    return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+  };
+  return r;
+}
+
+// ============================================================
+//  OPEN FOLDER
+// ============================================================
+async function openFolder() {
+  try {
+    const h = await window.showDirectoryPicker({ mode: 'readwrite' });
+    S.rootHandle = h;
+    S.rootName   = h.name;
+    S.idx        = {};
+    S.tree       = [];
+    S.nonMdActivity = {};
+    notify('⏳ Indexando arquivos…', 'inf', 1200);
+    S.tree = await buildTree(h, '');
+    calculateAllScores();
+    document.getElementById('root-label').style.display = 'flex';
+    document.getElementById('root-name').textContent = h.name;
+    renderTree();
+    notify(`✓ ${Object.keys(S.idx).length} arquivo(s) .md carregado(s)`, 'ok');
+  } catch (err) {
+    if (err.name !== 'AbortError') notify('Erro: ' + err.message, 'err');
+  }
+}
+
+async function refreshTree() {
+  if (!S.rootHandle) { notify('Nenhuma pasta aberta', 'inf'); return; }
+  S.idx  = {};
+  S.tree = [];
+  S.nonMdActivity = {};
+  notify('⏳ Recarregando…', 'inf', 1000);
+  S.tree = await buildTree(S.rootHandle, '');
+  calculateAllScores();
+  renderTree();
+  notify(`✓ ${Object.keys(S.idx).length} arquivo(s) indexado(s)`, 'ok');
+}
+
+async function buildTree(dirH, parentPath) {
+  const items = [];
+  for await (const [name, h] of dirH.entries()) {
+    if (name.startsWith('.') || name === 'node_modules') continue;
+    const path = parentPath ? `${parentPath}/${name}` : name;
+    if (h.kind === 'directory') {
+      const children = await buildTree(h, path);
+      if (children.length) items.push({ type:'dir', name, path, handle: h, children, collapsed: false });
+    } else if (name.endsWith('.md')) {
+      const f = await h.getFile();
+      const content = await f.text();
+      S.idx[path] = { handle: h, content, name, parentHandle: dirH, lastModified: f.lastModified };
+      items.push({ type:'file', name, path, handle: h });
+    } else {
+      try {
+        const f = await h.getFile();
+        if (!S.nonMdActivity) S.nonMdActivity = {};
+        S.nonMdActivity[path] = f.lastModified;
+      } catch (e) {
+        // ignore errors reading non-md files
+      }
+    }
+  }
+  items.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    return a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' });
+  });
+  return items;
+}
+
+// ============================================================
+//  FOLDER FILTERING
+// ============================================================
+function handleFolderFilter(q) {
+  S.folderFilter = q.trim().toLowerCase();
+  renderTree();
+}
+
+function filterTree(items, ancestorMatched = false) {
+  if (!S.folderFilter) return items;
+  
+  const filtered = [];
+  for (const item of items) {
+    if (item.type === 'dir') {
+      const isMatch = item.name.toLowerCase().includes(S.folderFilter);
+      const currentlyMatched = ancestorMatched || isMatch;
+      const filteredChildren = filterTree(item.children, currentlyMatched);
+      
+      if (currentlyMatched || filteredChildren.length > 0) {
+        filtered.push({
+          ...item,
+          children: filteredChildren
+        });
+      }
+    } else {
+      if (ancestorMatched) {
+        filtered.push(item);
+      }
+    }
+  }
+  return filtered;
+}
+
+// ============================================================
+//  RENDER TREE
+// ============================================================
+function renderTree() {
+  const el = document.getElementById('file-tree');
+  if (!S.tree.length) {
+    el.innerHTML = '<div class="empty-tree"><p>Nenhum arquivo .md encontrado nesta pasta</p></div>';
+    return;
+  }
+  el.innerHTML = '';
+  
+  const displayedTree = filterTree(S.tree, false);
+  if (displayedTree.length === 0 && S.folderFilter) {
+    el.innerHTML = `<div class="empty-tree"><p>Nenhuma pasta ou subpasta com arquivos .md correspondente a "<strong>${esc(S.folderFilter)}</strong>"</p></div>`;
+    return;
+  }
+  
+  appendTreeItems(el, displayedTree, 0);
+  if (S.view === 'graph') { gvBuild(); gvWarm(); }
+}
+
+function appendTreeItems(container, items) {
+  for (const item of items) {
+    if (item.type === 'dir') {
+      const row = document.createElement('div');
+      row.className = 't-item t-dir' + (item.collapsed ? ' closed' : '');
+      row.dataset.path = item.path;
+      row.innerHTML = `
+        <svg class="chevron" width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.749.749 0 0 1 0-1.06Z"/>
+        </svg>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="#e3b341">
+          <path d="M1.75 1h5.5a.75.75 0 0 1 .524.215l1.72 1.68H14.25c.966 0 1.75.784 1.75 1.75v7.75A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-9.5C0 1.784.784 1 1.75 1Z"/>
+        </svg>
+        <span class="t-name">${esc(item.name)}</span>
+        <button class="t-copy" title="Copiar caminho">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
+            <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
+          </svg>
+        </button>
+        <button class="t-graph" title="Ver no grafo">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="8" cy="3.5" r="2"/>
+            <circle cx="3.5" cy="12" r="2"/>
+            <circle cx="12.5" cy="12" r="2"/>
+            <path d="M7 5.2 4.4 10.3M9 5.2l2.6 5.1M5.5 12h5"/>
+          </svg>
+        </button>
+      `;
+      row.addEventListener('click', () => toggleDir(item, row, childBox));
+      row.querySelector('.t-copy').addEventListener('click',  e => copyFilePath(item.path, e));
+      row.querySelector('.t-graph').addEventListener('click', e => { e.stopPropagation(); gvGoTo(item.path); });
+      container.appendChild(row);
+
+      const childBox = document.createElement('div');
+      childBox.className = 't-children';
+      childBox.style.display = item.collapsed ? 'none' : '';
+      appendTreeItems(childBox, item.children);
+      container.appendChild(childBox);
+    } else {
+      const row = document.createElement('div');
+      row.className = 't-item t-file';
+      row.dataset.path = item.path;
+      if (item.path === S.active) row.classList.add('active');
+      const tab = S.tabs.find(t => t.path === item.path);
+      const fileEntry = S.idx[item.path];
+      const score = fileEntry ? fileEntry.score : null;
+      let scoreHtml = '';
+      if (score !== null && score !== undefined) {
+        const scoreClass = score >= 70 ? 'high' : (score >= 40 ? 'med' : 'low');
+        const tooltip = fileEntry.scoreDetails ? fileEntry.scoreDetails.join('\n') : `Score: ${score}`;
+        scoreHtml = `<span class="t-score ${scoreClass}" title="${esc(tooltip)}" onclick="copyPromptToClipboard('${esc(item.path)}', event)">${score}</span>`;
+      }
+      row.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="#58a6ff" style="flex-shrink:0">
+          <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914Z"/>
+        </svg>
+        <span class="t-name">${esc(item.name)}</span>
+        ${scoreHtml}
+        ${tab?.dirty ? '<span class="t-dot">●</span>' : ''}
+        <button class="t-copy" title="Copiar caminho">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
+            <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
+          </svg>
+        </button>
+        <button class="t-rename" title="Renomear">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354l-1.086-1.086ZM11.189 6.25 9.75 4.81l-6.286 6.287a.25.25 0 0 0-.064.108l-.558 1.953 1.953-.558a.249.249 0 0 0 .108-.064l6.286-6.286Z"/>
+          </svg>
+        </button>
+        <button class="t-del" title="Excluir">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z"/>
+          </svg>
+        </button>
+      `;
+      row.addEventListener('click', () => openFile(item.path));
+      row.querySelector('.t-copy').addEventListener('click',   e => copyFilePath(item.path, e));
+      row.querySelector('.t-rename').addEventListener('click', e => { e.stopPropagation(); showRenameDialog(item.path); });
+      row.querySelector('.t-del').addEventListener('click',    e => { e.stopPropagation(); deleteFile(item.path); });
+      container.appendChild(row);
+    }
+  }
+}
+
+function toggleDir(item, row, childBox) {
+  item.collapsed = !item.collapsed;
+  row.classList.toggle('closed', item.collapsed);
+  childBox.style.display = item.collapsed ? 'none' : '';
+}
+
+// ============================================================
+//  OPEN FILE
+// ============================================================
+async function openFile(path) {
+  const entry = S.idx[path];
+  if (!entry) return;
+
+  if (!S.tabs.find(t => t.path === path)) {
+    S.tabs.push({ path, dirty: false });
+  }
+  S.active = path;
+
+  // Load into editor (suppress change event)
+  S._noChange = true;
+  S.editor.setValue(entry.content);
+  S.editor.clearHistory();
+  S._noChange = false;
+
+  // Show panes
+  setFileOpen(true);
+
+  renderTabs();
+  updateBreadcrumb(path);
+  updateStats();
+  setSaveDirty(false);
+  markActiveInTree(path);
+  renderPreview();
+
+  if (S.view === 'graph') { gvFocus(path); return; }
+  setTimeout(() => { S.editor.refresh(); S.editor.focus(); }, 30);
+}
+
+function setFileOpen(open) {
+  document.getElementById('welcome').style.display     = open ? 'none' : '';
+  document.getElementById('editor-pane').style.display = open ? ''     : 'none';
+  document.getElementById('preview-pane').style.display= open ? ''     : 'none';
+}
+
+// ============================================================
+//  SAVE
+// ============================================================
+async function saveActive() {
+  if (!S.active) return;
+  const entry = S.idx[S.active];
+  if (!entry) return;
+  const content = S.editor.getValue();
+  try {
+    const w = await entry.handle.createWritable();
+    await w.write(content);
+    await w.close();
+    entry.content = content;
+    entry.lastModified = Date.now();
+    calculateAllScores();
+    renderTree();
+    const tab = S.tabs.find(t => t.path === S.active);
+    if (tab) tab.dirty = false;
+    renderTabs();
+    setSaveDirty(false);
+    notify('✓ Salvo', 'ok', 1800);
+  } catch (err) {
+    notify('Erro ao salvar: ' + err.message, 'err');
+  }
+}
+
+// ============================================================
+//  TABS
+// ============================================================
+function renderTabs() {
+  const bar = document.getElementById('tabs-bar');
+  bar.innerHTML = '';
+  for (const tab of S.tabs) {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.path === S.active ? ' active' : '');
+    const name = tab.path.split('/').pop();
+    el.innerHTML = `
+      <span class="tab-name" title="${esc(tab.path)}">${esc(name)}</span>
+      ${tab.dirty ? '<span class="tab-dot">●</span>' : ''}
+      <span class="tab-x" title="Fechar">×</span>
+    `;
+    el.querySelector('.tab-x').addEventListener('click', e => { e.stopPropagation(); closeTab(tab.path); });
+    el.addEventListener('click', () => openFile(tab.path));
+    bar.appendChild(el);
+  }
+}
+
+function closeTab(path) {
+  const tab = S.tabs.find(t => t.path === path);
+  if (tab?.dirty && !confirm(`"${path.split('/').pop()}" tem alterações não salvas. Fechar mesmo assim?`)) return;
+  S.tabs = S.tabs.filter(t => t.path !== path);
+  if (S.active === path) {
+    if (S.tabs.length) {
+      openFile(S.tabs[S.tabs.length - 1].path);
+    } else {
+      S.active = null;
+      setFileOpen(false);
+      document.getElementById('breadcrumb').textContent = 'Nenhum arquivo aberto';
+      document.getElementById('s-path').textContent  = 'Pronto';
+      document.getElementById('s-stats').textContent = '—';
+      document.getElementById('s-save').textContent  = '';
+    }
+  }
+  renderTabs();
+  markActiveInTree(S.active);
+}
+
+function closeActiveTab() {
+  if (S.active) closeTab(S.active);
+}
+
+// ============================================================
+//  PREVIEW
+// ============================================================
+function renderPreview() {
+  const content = S.editor ? S.editor.getValue() : '';
+  document.getElementById('preview-body').innerHTML = marked.parse(content);
+}
+
+let _prevTimer;
+function debouncedPreview() {
+  clearTimeout(_prevTimer);
+  _prevTimer = setTimeout(renderPreview, 220);
+}
+
+// ============================================================
+//  VIEW MODE
+// ============================================================
+function setView(v) {
+  S.view = v;
+  const ec = document.getElementById('editor-container');
+  ec.className = `v-${v}`;
+  ['edit','split','prev','graph'].forEach(m => {
+    document.getElementById(`vb-${m}`).classList.toggle('on', m === v);
+  });
+  if (v === 'graph') { gvShow(); return; }
+  gvHide();
+  if (v !== 'prev') { setTimeout(() => { S.editor.refresh(); S.editor.focus(); }, 20); }
+  if (v !== 'edit') renderPreview();
+}
+
+// ============================================================
+//  SEARCH
+// ============================================================
+function setSearchMode(mode) {
+  S.searchMode = mode;
+  document.querySelectorAll('.mode-pill').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  handleSearch(document.getElementById('search-input').value);
+}
+
+let _searchTimer;
+function handleSearch(q) {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => doSearch(q.trim()), 180);
+}
+
+function doSearch(q) {
+  const tree = document.getElementById('file-tree');
+  const results = document.getElementById('search-results');
+  if (!q) {
+    tree.style.display = '';
+    results.style.display = 'none';
+    return;
+  }
+  tree.style.display = 'none';
+  results.style.display = '';
+  const ql = q.toLowerCase();
+
+  if (S.searchMode === 'files') {
+    const hits = Object.keys(S.idx).filter(p => p.toLowerCase().includes(ql));
+    if (!hits.length) { results.innerHTML = `<div class="sr-empty">Sem resultados para "<strong>${esc(q)}</strong>"</div>`; return; }
+    results.innerHTML = hits.map(p => {
+      const name = p.split('/').pop();
+      const dir  = p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '';
+      const fileEntry = S.idx[p];
+      const score = fileEntry ? fileEntry.score : null;
+      let scoreHtml = '';
+      if (score !== null && score !== undefined) {
+        const scoreClass = score >= 70 ? 'high' : (score >= 40 ? 'med' : 'low');
+        const tooltip = fileEntry.scoreDetails ? fileEntry.scoreDetails.join('\n') : `Score: ${score}`;
+        scoreHtml = `<span class="t-score ${scoreClass}" title="${esc(tooltip)}" onclick="copyPromptToClipboard('${esc(p)}', event)">${score}</span>`;
+      }
+      return `<div class="sr-item" onclick="openFile('${esc(p)}')">
+        <div class="sr-file">${hlMatch(name, ql)} ${scoreHtml}</div>
+        ${dir ? `<div class="sr-dir">${esc(dir)}</div>` : ''}
+      </div>`;
+    }).join('');
+  } else {
+    const hits = [];
+    for (const [p, e] of Object.entries(S.idx)) {
+      const lines = e.content.split('\n');
+      const matched = [];
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].toLowerCase().includes(ql)) {
+          matched.push({ n: i+1, t: lines[i].trim() });
+          if (matched.length >= 3) break;
+        }
+      }
+      if (matched.length) hits.push({ path: p, matched });
+    }
+    if (!hits.length) { results.innerHTML = `<div class="sr-empty">Sem resultados para "<strong>${esc(q)}</strong>"</div>`; return; }
+    results.innerHTML = hits.map(({ path: p, matched }) => {
+      const name = p.split('/').pop();
+      const fileEntry = S.idx[p];
+      const score = fileEntry ? fileEntry.score : null;
+      let scoreHtml = '';
+      if (score !== null && score !== undefined) {
+        const scoreClass = score >= 70 ? 'high' : (score >= 40 ? 'med' : 'low');
+        const tooltip = fileEntry.scoreDetails ? fileEntry.scoreDetails.join('\n') : `Score: ${score}`;
+        scoreHtml = `<span class="t-score ${scoreClass}" title="${esc(tooltip)}" onclick="copyPromptToClipboard('${esc(p)}', event)">${score}</span>`;
+      }
+      return `<div class="sr-item" onclick="openFile('${esc(p)}')">
+        <div class="sr-file">${esc(name)} ${scoreHtml}</div>
+        <div class="sr-lines">${matched.map(m => `<div class="sr-line">L${m.n}: ${hlMatch(m.t, ql)}</div>`).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ============================================================
+//  NEW FILE
+// ============================================================
+function showNewFileDialog() {
+  if (!S.rootHandle) { notify('Abra uma pasta primeiro', 'inf'); return; }
+  document.getElementById('new-file-overlay').style.display = 'flex';
+  const input = document.getElementById('new-file-input');
+  input.value = '';
+  setTimeout(() => input.focus(), 50);
+}
+function closeNewFileDialog() {
+  document.getElementById('new-file-overlay').style.display = 'none';
+}
+async function createNewFile() {
+  let name = document.getElementById('new-file-input').value.trim();
+  if (!name) { notify('Digite um nome', 'inf'); return; }
+  if (!name.endsWith('.md')) name += '.md';
+  try {
+    const h = await S.rootHandle.getFileHandle(name, { create: true });
+    const w = await h.createWritable();
+    const content = `# ${name.replace('.md','')}\n\n`;
+    await w.write(content);
+    await w.close();
+    S.idx[name] = { handle: h, content, name, lastModified: Date.now() };
+    S.tree.push({ type:'file', name, path: name, handle: h });
+    S.tree.sort((a,b) => {
+      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+      return a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' });
+    });
+    calculateAllScores();
+    renderTree();
+    closeNewFileDialog();
+    await openFile(name);
+    notify(`✓ "${name}" criado`, 'ok');
+  } catch (err) {
+    notify('Erro ao criar arquivo: ' + err.message, 'err');
+  }
+}
+
+// ============================================================
+//  RENAME FILE
+// ============================================================
+let _renamePath = null;
+
+function showRenameDialog(path) {
+  _renamePath = path;
+  const inp = document.getElementById('rename-input');
+  inp.value = path.split('/').pop();
+  document.getElementById('rename-overlay').style.display = 'flex';
+  setTimeout(() => { inp.focus(); inp.select(); }, 50);
+}
+
+function closeRenameDialog() {
+  document.getElementById('rename-overlay').style.display = 'none';
+  _renamePath = null;
+}
+
+async function confirmRename() {
+  if (!_renamePath) return;
+  let newName = document.getElementById('rename-input').value.trim();
+  if (!newName) { notify('Digite um nome', 'inf'); return; }
+  if (!newName.endsWith('.md')) newName += '.md';
+
+  const oldPath = _renamePath;
+  const entry   = S.idx[oldPath];
+  if (!entry) return;
+
+  const dir     = oldPath.includes('/') ? oldPath.substring(0, oldPath.lastIndexOf('/')) : '';
+  const newPath = dir ? `${dir}/${newName}` : newName;
+
+  if (newPath === oldPath) { closeRenameDialog(); return; }
+  if (S.idx[newPath]) { notify(`"${newName}" já existe`, 'err'); return; }
+
+  try {
+    // Chrome 109+: handle.move(newName) renames in-place
+    if (typeof entry.handle.move === 'function') {
+      await entry.handle.move(newName);
+    } else {
+      // Fallback: copy content to new file, delete old
+      const newHandle = await entry.parentHandle.getFileHandle(newName, { create: true });
+      const w = await newHandle.createWritable();
+      await w.write(entry.content);
+      await w.close();
+      await entry.parentHandle.removeEntry(entry.handle.name);
+      entry.handle = newHandle;
+    }
+
+    // Update idx
+    entry.name = newName;
+    S.idx[newPath] = entry;
+    delete S.idx[oldPath];
+
+    // Update open tabs
+    S.tabs.forEach(t => { if (t.path === oldPath) t.path = newPath; });
+    if (S.active === oldPath) {
+      S.active = newPath;
+      updateBreadcrumb(newPath);
+    }
+
+    // Update tree node in-place
+    function patchTree(items) {
+      for (const item of items) {
+        if (item.type === 'file' && item.path === oldPath) {
+          item.name = newName;
+          item.path = newPath;
+          return true;
+        }
+        if (item.type === 'dir' && patchTree(item.children)) return true;
+      }
+      return false;
+    }
+    patchTree(S.tree);
+
+    calculateAllScores();
+    renderTree();
+    renderTabs();
+    closeRenameDialog();
+    notify(`✓ Renomeado para "${newName}"`, 'ok');
+  } catch (err) {
+    notify('Erro ao renomear: ' + err.message, 'err');
+  }
+}
+
+// ============================================================
+//  DELETE FILE
+// ============================================================
+async function deleteFile(path) {
+  const name  = path.split('/').pop();
+  if (!confirm(`Excluir "${name}"?\n\nEsta ação não pode ser desfeita.`)) return;
+
+  const entry = S.idx[path];
+  if (!entry) return;
+
+  try {
+    await entry.parentHandle.removeEntry(name);
+
+    // Close tab if open
+    if (S.tabs.find(t => t.path === path)) closeTab(path);
+
+    // Remove from idx and tree
+    delete S.idx[path];
+    function pruneTree(items) {
+      const i = items.findIndex(it => it.type === 'file' && it.path === path);
+      if (i !== -1) { items.splice(i, 1); return true; }
+      for (const item of items) {
+        if (item.type === 'dir' && pruneTree(item.children)) return true;
+      }
+      return false;
+    }
+    pruneTree(S.tree);
+
+    calculateAllScores();
+    renderTree();
+    notify(`🗑 "${name}" excluído`, 'ok');
+  } catch (err) {
+    notify('Erro ao excluir: ' + err.message, 'err');
+  }
+}
+
+// ============================================================
+//  COPY FILE PATH
+// ============================================================
+function getFullPath(relativePath) {
+  const rel = relativePath.replace(/\//g, '\\');
+  const base = S.rootName;
+  return base + '\\' + rel;
+}
+
+async function copyFilePath(relativePath, e) {
+  e.stopPropagation();
+  const fullPath = getFullPath(relativePath);
+
+  // Try modern Clipboard API (https / localhost)
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(fullPath);
+    ok = true;
+  } catch (_) {}
+
+  // Fallback: hidden textarea + execCommand (works on file://)
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = fullPath;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (_) {}
+  }
+
+  if (ok) {
+    const btn = e.currentTarget;
+    btn.classList.add('ok');
+    setTimeout(() => btn.classList.remove('ok'), 1400);
+    notify(`📋 ${fullPath}`, 'ok', 3000);
+  } else {
+    prompt('Copie o caminho (Ctrl+C):', fullPath);
+  }
+}
+
+// ============================================================
+//  UI HELPERS
+// ============================================================
+function updateBreadcrumb(path) {
+  const parts = path.split('/');
+  const html = parts.map((p, i) =>
+    i < parts.length - 1
+      ? `${esc(p)} <span class="sep">/</span> `
+      : `<strong>${esc(p)}</strong>`
+  ).join('');
+  document.getElementById('breadcrumb').innerHTML = html;
+}
+
+function updateStats() {
+  const v = S.editor ? S.editor.getValue() : '';
+  const words = v.trim() ? v.trim().split(/\s+/).length : 0;
+  const lines = v.split('\n').length;
+
+  let scoreText = '—';
+  if (S.active && S.idx[S.active]) {
+    const entry = S.idx[S.active];
+    const live = calculateSingleScore(S.active, v, entry.inLinksCount || 0, Date.now());
+    entry.content = v;
+    entry.score = live.score;
+    entry.scoreDetails = live.details;
+    entry.actionSuggestion = live.actionSuggestion;
+    entry.fileProfile = live.profile;
+    
+    scoreText = `${live.score}% (${live.actionSuggestion})`;
+    
+    const row = document.querySelector(`.t-item.t-file[data-path="${esc(S.active)}"]`);
+    if (row) {
+      let badge = row.querySelector('.t-score');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 't-score';
+        const nameEl = row.querySelector('.t-name');
+        if (nameEl) nameEl.insertAdjacentElement('afterend', badge);
+      }
+      badge.textContent = live.score;
+      badge.className = `t-score ${live.score >= 70 ? 'high' : (live.score >= 40 ? 'med' : 'low')}`;
+      badge.title = live.details.join('\n');
+      badge.onclick = (e) => copyPromptToClipboard(S.active, e);
+    }
+  }
+
+  document.getElementById('s-stats').textContent = `${words} palavras · ${lines} linhas · Score de Utilidade: ${scoreText}`;
+  if (S.active) document.getElementById('s-path').textContent = (S.rootName ? S.rootName + '/' : '') + S.active;
+}
+
+function setSaveDirty(dirty) {
+  document.getElementById('btn-save').classList.toggle('dirty', dirty);
+  const ss = document.getElementById('s-save');
+  ss.textContent = dirty ? '● não salvo' : '';
+  ss.className   = dirty ? 'dirty' : '';
+}
+
+function markActiveInTree(path) {
+  document.querySelectorAll('.t-item.t-file').forEach(el => {
+    el.classList.toggle('active', el.dataset.path === path);
+  });
+}
+
+let _notifTimer;
+function notify(msg, type = 'inf', ms = 3000) {
+  const el = document.getElementById('notif');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = 'block';
+  clearTimeout(_notifTimer);
+  _notifTimer = setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+
+// ============================================================
+//  UTILITY SCORE LOGIC
+// ============================================================
+function calculateAllScores() {
+  const inLinks = {};
+  const outLinks = {};
+
+  // Initialize
+  for (const path of Object.keys(S.idx)) {
+    inLinks[path] = new Set();
+    outLinks[path] = new Set();
+  }
+
+  // Build byBase mapping
+  const byBase = {};
+  for (const p of Object.keys(S.idx)) {
+    const base = p.split('/').pop().replace(/\.md$/, '').toLowerCase();
+    (byBase[base] = byBase[base] || []).push(p);
+  }
+
+  for (const [path, entry] of Object.entries(S.idx)) {
+    const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    
+    // Parse Wiki-links [[target]]
+    for (const m of entry.content.matchAll(/\[\[([^\]|#]+)/g)) {
+      const targetBase = m[1].trim().toLowerCase().replace(/\.md$/, '');
+      const t = byBase[targetBase];
+      if (t && t[0] !== path) {
+        outLinks[path].add(t[0]);
+        if (inLinks[t[0]]) inLinks[t[0]].add(path);
+      }
+    }
+    
+    // Parse standard markdown links [text](target.md)
+    for (const m of entry.content.matchAll(/\]\(([^)#]+\.md)(?:#[^)]*)?\)/gi)) {
+      let raw;
+      try { raw = decodeURI(m[1].trim()); } catch (_) { raw = m[1].trim(); }
+      const resolved = gvResolve(dir, raw);
+      if (S.idx[resolved] && resolved !== path) {
+        outLinks[path].add(resolved);
+        if (inLinks[resolved]) inLinks[resolved].add(path);
+      } else {
+        const targetBase = raw.split('/').pop().replace(/\.md$/, '').toLowerCase();
+        const t = byBase[targetBase];
+        if (t && t[0] !== path) {
+          outLinks[path].add(t[0]);
+          if (inLinks[t[0]]) inLinks[t[0]].add(path);
+        }
+      }
+    }
+  }
+
+  // Now calculate score for each file
+  for (const [path, entry] of Object.entries(S.idx)) {
+    const inCount = inLinks[path]?.size || 0;
+    entry.inLinksCount = inCount; // Cache in-links count
+    
+    const res = calculateSingleScore(path, entry.content, inCount);
+    entry.score = res.score;
+    entry.scoreDetails = res.details;
+    entry.actionSuggestion = res.actionSuggestion;
+    entry.fileProfile = res.profile;
+  }
+}
+
+function getMaxOtherModified(excludePath) {
+  const dir = excludePath.includes('/') ? excludePath.substring(0, excludePath.lastIndexOf('/')) : '';
+  let maxTime = 0;
+  
+  // 1. Check other Markdown files in S.idx
+  for (const [p, entry] of Object.entries(S.idx)) {
+    if (p === excludePath) continue;
+    const isInDir = dir === '' ? true : p.startsWith(dir + '/');
+    if (isInDir && entry.lastModified && entry.lastModified > maxTime) {
+      maxTime = entry.lastModified;
+    }
+  }
+  
+  // 2. Check other non-Markdown files in S.nonMdActivity
+  if (S.nonMdActivity) {
+    for (const [p, time] of Object.entries(S.nonMdActivity)) {
+      const isInDir = dir === '' ? true : p.startsWith(dir + '/');
+      if (isInDir && time > maxTime) {
+        maxTime = time;
+      }
+    }
+  }
+  
+  return maxTime;
+}
+
+function calculateSingleScore(path, content, inLinksCount, overrideLastModified) {
+  const name = path.split('/').pop();
+  const nameLower = name.toLowerCase();
+  const contentTrimmed = content.trim();
+  
+  const details = [];
+  details.push(`Pontuação de Utilidade para ${name}:`);
+  
+  const entry = S.idx[path];
+  const lastModified = overrideLastModified || entry?.lastModified || 0;
+  
+  // 1. Detect profile
+  let profile = "default";
+  let profileName = "Padrão";
+  
+  const isLogOrReport = /report|comment|ticket|historico|changelog|log|derived|out|\d{2}-\d{2}-\d{4}/i.test(path);
+  const isCoreDoc = /readme|claude|design|instrucoes|guia|arquitetura|fontes/i.test(nameLower);
+  
+  if (isLogOrReport) {
+    profile = "log";
+    profileName = "Histórico / Relatório / Log";
+  } else if (isCoreDoc) {
+    profile = "doc";
+    profileName = "Documentação Core (README/Guia)";
+  }
+  
+  details.push(`- Perfil do arquivo detectado: ${profileName}`);
+  
+  const words = contentTrimmed ? contentTrimmed.split(/\s+/).length : 0;
+  let score = 0;
+  
+  if (words === 0) {
+    details.push(`- Arquivo totalmente vazio (0 pt)`);
+    return { score: 0, details, actionSuggestion: "Recomendado: Excluir ou preencher conteúdo.", profile };
+  }
+  
+  if (profile === "log") {
+    // === PERFIL HISTÓRICO / RELATÓRIO / LOG (Max: 100 pt) ===
+    let contentPoints = 0;
+    if (words >= 150) {
+      contentPoints = 45;
+      details.push(`- Volume de conteúdo (${words} palavras): +45 pt (máx 45)`);
+    } else if (words >= 50) {
+      contentPoints = 35;
+      details.push(`- Volume de conteúdo (${words} palavras): +35 pt (máx 45)`);
+    } else {
+      contentPoints = 25;
+      details.push(`- Conteúdo curto (${words} palavras): +25 pt (máx 45)`);
+    }
+    
+    let structPoints = 0;
+    const hasTitle = /^(?:#+\s+.+)/m.test(content);
+    if (hasTitle) {
+      structPoints += 15;
+      details.push(`- Possui título de cabeçalho: +15 pt`);
+    }
+    const listItems = (content.match(/^[*-]\s+/gm) || []).length + (content.match(/^\d+\.\s+/gm) || []).length;
+    if (listItems >= 5) {
+      structPoints += 20;
+      details.push(`- Possui lista detalhada (${listItems} itens): +20 pt`);
+    } else if (listItems > 0) {
+      structPoints += 10;
+      details.push(`- Possui lista básica (${listItems} itens): +10 pt`);
+    }
+    const hasDatesOrBold = /\d{2}\/\d{2}|\d{4}|\*\*|__/g.test(content);
+    if (hasDatesOrBold) {
+      structPoints += 10;
+      details.push(`- Contém marcações de datas ou destaques: +10 pt`);
+    }
+    
+    let connPoints = 0;
+    let outs = 0;
+    const seenOuts = new Set();
+    const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    const byBase = {};
+    for (const p of Object.keys(S.idx)) {
+      const base = p.split('/').pop().replace(/\.md$/, '').toLowerCase();
+      (byBase[base] = byBase[base] || []).push(p);
+    }
+    for (const m of content.matchAll(/\[\[([^\]|#]+)/g)) {
+      const targetBase = m[1].trim().toLowerCase().replace(/\.md$/, '');
+      const t = byBase[targetBase];
+      if (t && t[0] !== path) seenOuts.add(t[0]);
+    }
+    for (const m of content.matchAll(/\]\(([^)#]+\.md)(?:#[^)]*)?\)/gi)) {
+      let raw;
+      try { raw = decodeURI(m[1].trim()); } catch (_) { raw = m[1].trim(); }
+      const resolved = gvResolve(dir, raw);
+      if (S.idx[resolved] && resolved !== path) seenOuts.add(resolved);
+    }
+    outs = seenOuts.size;
+    if (outs > 0 || inLinksCount > 0) {
+      connPoints = Math.min(10, (outs + inLinksCount) * 5);
+      details.push(`- Conexões (opcionais para logs): +${connPoints} pt (máx 10)`);
+    } else {
+      details.push(`- Sem conexões (comum para logs, sem penalidade): 0 pt`);
+    }
+    
+    score = contentPoints + structPoints + connPoints;
+    
+    // Desynchronization penalty
+    const maxOtherModified = getMaxOtherModified(path);
+    if (lastModified && maxOtherModified && maxOtherModified > lastModified) {
+      const diffDays = (maxOtherModified - lastModified) / (1000 * 60 * 60 * 24);
+      if (diffDays > 3) {
+        const penalty = diffDays > 14 ? 30 : (diffDays > 7 ? 20 : 10);
+        score -= penalty;
+        details.push(`- Penalidade: Histórico desatualizado em relação à pasta (${Math.round(diffDays)} dias sem atualizar) (-${penalty} pt)`);
+      }
+    }
+    
+  } else if (profile === "doc") {
+    // === PERFIL DOCUMENTAÇÃO CORE (Max: 100 pt) ===
+    let contentPoints = 0;
+    if (words >= 400) {
+      contentPoints = 30;
+      details.push(`- Volume de palavras (${words} palavras): +30 pt (máx 30)`);
+    } else if (words >= 150) {
+      contentPoints = 20;
+      details.push(`- Volume de palavras (${words} palavras): +20 pt (máx 30)`);
+    } else {
+      contentPoints = 10;
+      details.push(`- Conteúdo curto (${words} palavras): +10 pt (máx 30)`);
+    }
+    
+    let richnessPoints = 0;
+    const hasLists = /^[*-]\s+/m.test(content) || /^\d+\.\s+/m.test(content);
+    if (hasLists) { richnessPoints += 5; details.push(`- Contém listas: +5 pt`); }
+    const hasCode = /```/.test(content);
+    if (hasCode) { richnessPoints += 5; details.push(`- Contém blocos de código: +5 pt`); }
+    const hasTables = content.includes('|');
+    if (hasTables) { richnessPoints += 5; details.push(`- Contém tabelas: +5 pt`); }
+    
+    let structPoints = 0;
+    const h1Count = (content.match(/^#\s+/gm) || []).length;
+    const h2Count = (content.match(/^##\s+/gm) || []).length;
+    const h3Count = (content.match(/^###\s+/gm) || []).length;
+    if (h1Count > 0 || h2Count > 0 || h3Count > 0) {
+      structPoints += 10;
+      details.push(`- Possui cabeçalhos: +10 pt`);
+      const levels = (h1Count > 0 ? 1 : 0) + (h2Count > 0 ? 1 : 0) + (h3Count > 0 ? 1 : 0);
+      if (levels >= 2) { structPoints += 10; details.push(`- Possui hierarquia de títulos H1/H2: +10 pt`); }
+      if (/^>\s+/m.test(content)) { structPoints += 5; details.push(`- Contém blocos de aviso/citação: +5 pt`); }
+    }
+    
+    let connPoints = 0;
+    let outs = 0;
+    const seenOuts = new Set();
+    const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    const byBase = {};
+    for (const p of Object.keys(S.idx)) {
+      const base = p.split('/').pop().replace(/\.md$/, '').toLowerCase();
+      (byBase[base] = byBase[base] || []).push(p);
+    }
+    for (const m of content.matchAll(/\[\[([^\]|#]+)/g)) {
+      const targetBase = m[1].trim().toLowerCase().replace(/\.md$/, '');
+      const t = byBase[targetBase];
+      if (t && t[0] !== path) seenOuts.add(t[0]);
+    }
+    for (const m of content.matchAll(/\]\(([^)#]+\.md)(?:#[^)]*)?\)/gi)) {
+      let raw;
+      try { raw = decodeURI(m[1].trim()); } catch (_) { raw = m[1].trim(); }
+      const resolved = gvResolve(dir, raw);
+      if (S.idx[resolved] && resolved !== path) seenOuts.add(resolved);
+    }
+    outs = seenOuts.size;
+    if (outs > 0) {
+      const outPt = Math.min(15, outs * 5);
+      connPoints += outPt;
+      details.push(`- Links de saída: conecta a ${outs} arquivo(s) (+${outPt} pt)`);
+    }
+    if (inLinksCount > 0) {
+      const inPt = Math.min(15, inLinksCount * 5);
+      connPoints += inPt;
+      details.push(`- Links de entrada: referenciado por ${inLinksCount} arquivo(s) (+${inPt} pt)`);
+    }
+    if (outs === 0 && inLinksCount === 0) {
+      const isReadme = nameLower.includes('readme') || nameLower === 'index.md';
+      if (!isReadme) {
+        connPoints -= 15;
+        details.push(`- Penalidade: documentação core órfã no projeto (-15 pt)`);
+      }
+    }
+    
+    score = contentPoints + richnessPoints + structPoints + connPoints;
+    
+  } else {
+    // === PERFIL PADRÃO (Max: 100 pt) ===
+    let contentPoints = Math.min(35, Math.round(Math.log(words + 1) * 5.2));
+    details.push(`- Volume de palavras (${words} palavras): +${contentPoints} pt (máx 35)`);
+    
+    let richnessPoints = 0;
+    const listItems = (content.match(/^[*-]\s+/gm) || []).length + (content.match(/^\d+\.\s+/gm) || []).length;
+    richnessPoints += Math.min(10, listItems * 2);
+    if (listItems > 0) details.push(`- Contém listas (${listItems} itens): +${Math.min(10, listItems * 2)} pt`);
+    if (/```/.test(content)) { richnessPoints += 5; details.push(`- Contém blocos de código: +5 pt`); }
+    if (content.includes('|')) { richnessPoints += 5; details.push(`- Contém tabelas: +5 pt`); }
+    
+    let structPoints = 0;
+    const h1Count = (content.match(/^#\s+/gm) || []).length;
+    const h2Count = (content.match(/^##\s+/gm) || []).length;
+    if (h1Count > 0 || h2Count > 0) {
+      structPoints += 15;
+      details.push(`- Possui cabeçalhos H1/H2: +15 pt`);
+      if (content.includes('**') || content.includes('__')) { structPoints += 10; details.push(`- Contém ênfases (negrito/itálico): +10 pt`); }
+    }
+    
+    let connPoints = 0;
+    let outs = 0;
+    const seenOuts = new Set();
+    const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    const byBase = {};
+    for (const p of Object.keys(S.idx)) {
+      const base = p.split('/').pop().replace(/\.md$/, '').toLowerCase();
+      (byBase[base] = byBase[base] || []).push(p);
+    }
+    for (const m of content.matchAll(/\[\[([^\]|#]+)/g)) {
+      const targetBase = m[1].trim().toLowerCase().replace(/\.md$/, '');
+      const t = byBase[targetBase];
+      if (t && t[0] !== path) seenOuts.add(t[0]);
+    }
+    for (const m of content.matchAll(/\]\(([^)#]+\.md)(?:#[^)]*)?\)/gi)) {
+      let raw;
+      try { raw = decodeURI(m[1].trim()); } catch (_) { raw = m[1].trim(); }
+      const resolved = gvResolve(dir, raw);
+      if (S.idx[resolved] && resolved !== path) seenOuts.add(resolved);
+    }
+    outs = seenOuts.size;
+    connPoints += Math.min(10, outs * 5);
+    connPoints += Math.min(10, inLinksCount * 5);
+    if (outs === 0 && inLinksCount === 0) {
+      connPoints -= 10;
+      details.push(`- Penalidade: arquivo órfão no projeto (-10 pt)`);
+    }
+    
+    score = contentPoints + richnessPoints + structPoints + connPoints;
+  }
+  
+  // PENALIDADES GLOBAIS COMUNS
+  let globalPenalties = 0;
+  const incompletePatterns = [/TODO/i, /WIP/i, /rascunho/i, /esboço/i, /placeholder/i, /preencher/i, /FIXME/i];
+  let matchedPattern = false;
+  for (const pat of incompletePatterns) {
+    if (pat.test(content)) { matchedPattern = true; break; }
+  }
+  if (matchedPattern) {
+    globalPenalties += 15;
+    details.push(`- Penalidade: possui marcações de incompleto (TODO/WIP) (-15 pt)`);
+  }
+  
+  const tempNames = ['untitled', 'novo-arquivo', 'temp', 'teste', 'untitled-file', 'test'];
+  const baseNameNoExt = nameLower.replace(/\.md$/, '');
+  if (tempNames.includes(baseNameNoExt)) {
+    globalPenalties += 20;
+    details.push(`- Penalidade: nome genérico ou temporário (-20 pt)`);
+  }
+  
+  score = Math.max(0, Math.min(100, score - globalPenalties));
+  
+  let actionSuggestion = "";
+  if (score < 40) {
+    actionSuggestion = "Recomendado: Excluir, unificar ou atualizar.";
+  } else if (score < 70) {
+    actionSuggestion = "Recomendado: Revisar ou enriquecer conteúdo.";
+  } else {
+    actionSuggestion = "Arquivo saudável e útil.";
+  }
+  details.push(`\nSugestão: ${actionSuggestion}`);
+  
+  return { score, details, actionSuggestion, profile };
+}
+
+async function copyPromptToClipboard(path, event) {
+  if (event) event.stopPropagation();
+  const entry = S.idx[path];
+  if (!entry) return;
+  
+  const fullPath = getFullPath(path);
+  const score = entry.score;
+  const actionSuggestion = entry.actionSuggestion;
+  const profile = entry.fileProfile || "default";
+  
+  let profileName = "Padrão";
+  if (profile === "log") profileName = "Histórico / Relatório / Log";
+  else if (profile === "doc") profileName = "Documentação Core (README/Guia)";
+
+  const negativePoints = entry.scoreDetails
+    ? entry.scoreDetails.filter(line => line.includes('Penalidade') || line.includes('Sem títulos') || line.includes('curto') || line.includes('vazio'))
+    : [];
+  
+  const warningsText = negativePoints.length > 0 
+    ? "\nPontos de melhoria identificados:\n" + negativePoints.join('\n')
+    : "\nO arquivo está bem estruturado segundo as diretrizes gerais.";
+
+  const tips = [];
+  if (negativePoints.some(line => line.includes('vazio') || line.includes('curto'))) {
+    tips.push("- Expanda o conteúdo textual para fornecer mais detalhes e explicações contextuais.");
+  }
+  if (negativePoints.some(line => line.includes('títulos') || line.includes('cabeçalhos'))) {
+    tips.push("- Adicione cabeçalhos estruturais (ex: # Título Principal, ## Subtítulo) para organizar o documento.");
+  }
+  if (negativePoints.some(line => line.includes('órfão'))) {
+    tips.push("- Adicione referências cruzadas: inclua links de/para outros arquivos do projeto (ex: referencie a partir de seu README ou crie links para arquivos relacionados).");
+  }
+  if (negativePoints.some(line => line.includes('TODO') || line.includes('WIP') || line.includes('incompleto'))) {
+    tips.push("- Resolva e remova as marcações temporárias de TODO, WIP ou blocos incompletos.");
+  }
+  if (negativePoints.some(line => line.includes('genérico') || line.includes('temporário'))) {
+    tips.push("- Renomeie o arquivo de seu nome temporário/genérico para um nome descritivo representativo.");
+  }
+  if (negativePoints.some(line => line.includes('desatualizado'))) {
+    tips.push("- Atualize o histórico/log para incluir e sincronizar as evoluções e modificações mais recentes ocorridas nos arquivos desta pasta.");
+  }
+
+  const tipsText = tips.length > 0
+    ? "\nInstruções recomendadas para reestruturação:\n" + tips.join('\n')
+    : "\nO arquivo atende bem ao perfil, realize apenas ajustes de conteúdo se houver novidades no projeto.";
+
+  const promptText = `Você é um assistente especialista em documentação de software. Por favor, revise e aprimore o arquivo Markdown localizado em:
+\`${fullPath}\`
+
+Informações sobre a saúde atual do documento:
+- Perfil do arquivo: ${profileName}
+- Score de utilidade: ${score}/100
+- Status: ${actionSuggestion}
+${warningsText}
+${tipsText}
+
+Por favor, reescreva o conteúdo desse arquivo Markdown melhorando o texto, sanando os pontos de melhoria identificados e organizando a estrutura para elevar a nota e a utilidade dele no projeto. Retorne apenas o código Markdown completo revisado.`;
+
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(promptText);
+    ok = true;
+  } catch (_) {}
+
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = promptText;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (_) {}
+  }
+
+  if (ok) {
+    notify(`📋 Prompt de correção copiado para o clipboard!`, 'ok', 3500);
+  } else {
+    notify(`Erro ao copiar o prompt.`, 'err');
+  }
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function hlMatch(text, q) {
+  const e = esc(text);
+  const i = e.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return e;
+  return e.slice(0, i) + `<mark>${e.slice(i, i + q.length)}</mark>` + e.slice(i + q.length);
+}
+
+// ============================================================
+//  GRAPH VIEW (estilo Obsidian)
+// ============================================================
+const GV = {
+  nodes: [], edges: [], byId: {}, adj: {},
+  cam: { x: 0, y: 0, k: 1 },
+  hover: null, dragN: null, panning: false,
+  px: 0, py: 0, moved: false,
+  alpha: 0, raf: null,
+  canvas: null, ctx: null, w: 0, h: 0, dpr: 1,
+};
+
+GV.opts = (() => {
+  const def = { layout: 'radial', repulsion: 1400, linkDist: 120, gapX: 70, gapY: 110, showLinks: true, labels: false };
+  try { return Object.assign(def, JSON.parse(localStorage.getItem('mdGraphOpts') || '{}')); }
+  catch (_) { return def; }
+})();
+
+function gvSaveOpts() {
+  try { localStorage.setItem('mdGraphOpts', JSON.stringify(GV.opts)); } catch (_) {}
+}
+
+const GV_COLORS = {
+  root:   '#bc8cff',
+  dir:    '#e3b341',
+  file:   '#58a6ff',
+  label:  '#8b949e',
+  active: '#3fb950',
+};
+
+function gvInit() {
+  if (GV.canvas) return;
+  GV.canvas = document.getElementById('graph-canvas');
+  GV.ctx = GV.canvas.getContext('2d');
+  new ResizeObserver(gvResize).observe(document.getElementById('graph-pane'));
+  GV.canvas.addEventListener('mousedown', gvDown);
+  document.addEventListener('mousemove', gvMove);
+  document.addEventListener('mouseup', gvUp);
+  GV.canvas.addEventListener('wheel', gvWheel, { passive: false });
+  GV.canvas.addEventListener('dblclick', gvDbl);
+
+  // sincroniza o menu com as opções salvas
+  document.getElementById('gs-rep').value      = GV.opts.repulsion;
+  document.getElementById('gs-dist').value     = GV.opts.linkDist;
+  document.getElementById('gs-gapx').value     = GV.opts.gapX;
+  document.getElementById('gs-gapy').value     = GV.opts.gapY;
+  document.getElementById('gs-links').checked  = GV.opts.showLinks;
+  document.getElementById('gs-labels').checked = GV.opts.labels;
+  gvSyncLayoutUI();
+}
+
+function gvToggleMenu() {
+  const m = document.getElementById('graph-menu');
+  m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+}
+
+function gvSyncLayoutUI() {
+  const l = GV.opts.layout;
+  document.getElementById('gs-layout').value = l;
+  document.getElementById('gm-radial').style.display  = l === 'radial' ? '' : 'none';
+  document.getElementById('gm-pyramid').style.display = l === 'radial' ? 'none' : '';
+}
+
+function gvSetLayout(l) {
+  GV.opts.layout = l;
+  gvSaveOpts();
+  gvSyncLayoutUI();
+  if (l === 'radial') gvWarm(1);
+  else gvApplyLayout();
+}
+
+function gvOpt(k, v) {
+  GV.opts[k] = v;
+  gvSaveOpts();
+  if (k === 'gapX' || k === 'gapY') {
+    if (GV.opts.layout !== 'radial') gvApplyLayout();
+  } else if (k === 'repulsion' || k === 'linkDist' || k === 'showLinks') {
+    gvWarm(0.6);
+  }
+}
+
+function gvResetView() {
+  GV.cam = { x: 0, y: 0, k: 1 };
+  if (GV.opts.layout === 'radial') gvWarm(0.8);
+  else gvApplyLayout();
+}
+
+// dispatcher dos layouts estáticos
+function gvApplyLayout() {
+  const l = GV.opts.layout;
+  if (l === 'pyramid')         gvLayoutPyramid();
+  else if (l === 'radialtree') gvLayoutRadialTree();
+  else if (l === 'circle')     gvLayoutCircle();
+  else if (l === 'htree')      gvLayoutHTree();
+  else if (l === 'grid')       gvLayoutGrid();
+}
+
+function gvResize() {
+  if (!GV.canvas) return;
+  GV.dpr = window.devicePixelRatio || 1;
+  GV.w = GV.canvas.clientWidth;
+  GV.h = GV.canvas.clientHeight;
+  GV.canvas.width  = Math.max(1, GV.w * GV.dpr);
+  GV.canvas.height = Math.max(1, GV.h * GV.dpr);
+}
+
+function gvShow() {
+  gvInit();
+  gvResize();
+  gvBuild();
+  if (GV.opts.layout === 'radial') gvWarm(1);
+  if (S.active) gvFocus(S.active, false);
+  if (!GV.raf) gvLoop();
+}
+
+function gvHide() {
+  if (GV.raf) { cancelAnimationFrame(GV.raf); GV.raf = null; }
+}
+
+function gvWarm(a = 0.5) { GV.alpha = Math.max(GV.alpha, a); }
+
+function gvFocus(path, zoom = true) {
+  const n = GV.byId[path];
+  if (!n) return;
+  if (zoom && GV.cam.k < 1.2) GV.cam.k = 1.2;
+  GV.cam.x = -n.x * GV.cam.k;
+  GV.cam.y = -n.y * GV.cam.k;
+}
+
+// filtro de pastas do grafo
+let _gvFilterT;
+function gvFilter(v) {
+  clearTimeout(_gvFilterT);
+  _gvFilterT = setTimeout(() => {
+    GV.filter = v;
+    gvBuild();
+    GV.cam.x = 0; GV.cam.y = 0;
+    if (GV.opts.layout === 'radial') gvWarm(1);
+  }, 220);
+}
+
+// abre o grafo centralizado num nó, com destaque temporário
+function gvGoTo(path) {
+  setView('graph');
+  gvFocus(path);
+  GV.flash = path;
+  clearTimeout(GV._flashT);
+  GV._flashT = setTimeout(() => { GV.flash = null; }, 2600);
+}
+
+function gvResolve(dir, rel) {
+  const parts = dir ? dir.split('/') : [];
+  for (const seg of rel.split('/')) {
+    if (seg === '..') parts.pop();
+    else if (seg !== '.' && seg !== '') parts.push(seg);
+  }
+  return parts.join('/');
+}
+
+function gvBuild() {
+  if (!S.rootHandle) { GV.nodes = []; GV.edges = []; GV.byId = {}; GV.adj = {}; return; }
+
+  // preserva posições de nós já existentes entre rebuilds
+  const oldPos = {};
+  GV.nodes.forEach(n => { oldPos[n.id] = n; });
+
+  // Obtém a árvore filtrada a partir do filtro da lateral esquerda
+  const treeToWalk = filterTree(S.tree, false);
+
+  // filtro de pastas: mantém pastas que casam, seus descendentes e ancestrais
+  const f = (GV.filter || '').trim().toLowerCase();
+  let keep = null;
+  if (f) {
+    keep = new Set(['//root']);
+    (function mark(items, ancestors, inMatch) {
+      for (const it of items) {
+        const isMatch = it.type === 'dir' && it.name.toLowerCase().includes(f);
+        const keepThis = inMatch || isMatch;
+        if (keepThis) {
+          ancestors.forEach(a => keep.add(a));
+          keep.add(it.path);
+        }
+        if (it.type === 'dir') mark(it.children, ancestors.concat(it.path), keepThis);
+      }
+    })(treeToWalk, [], false);
+  }
+
+  const nodes = [], edges = [];
+  const add = (id, label, type, depth) => {
+    const o = oldPos[id];
+    const ang = Math.random() * Math.PI * 2;
+    const rad = 30 + depth * 90 + Math.random() * 50;
+    nodes.push({
+      id, label, type, depth,
+      x: o ? o.x : Math.cos(ang) * rad,
+      y: o ? o.y : Math.sin(ang) * rad,
+      vx: 0, vy: 0, deg: 0,
+    });
+  };
+
+  add('//root', S.rootName || 'raiz', 'root', 0);
+  (function walk(items, parentId, depth) {
+    for (const it of items) {
+      if (keep && !keep.has(it.path)) continue;
+      if (it.type === 'dir') {
+        add(it.path, it.name, 'dir', depth);
+        edges.push({ a: parentId, b: it.path, kind: 'tree' });
+        walk(it.children, it.path, depth + 1);
+      } else {
+        add(it.path, it.name.replace(/\.md$/, ''), 'file', depth);
+        edges.push({ a: parentId, b: it.path, kind: 'tree' });
+      }
+    }
+  })(treeToWalk, '//root', 1);
+
+  // links markdown entre arquivos: [[wikilink]] e [texto](caminho.md)
+  const byBase = {};
+  for (const p of Object.keys(S.idx)) {
+    const base = p.split('/').pop().replace(/\.md$/, '').toLowerCase();
+    (byBase[base] = byBase[base] || []).push(p);
+  }
+  const seen = new Set(edges.map(e => e.a + '>' + e.b));
+
+  const byId = {};
+  nodes.forEach(n => { byId[n.id] = n; });
+
+  for (const [p, entry] of Object.entries(S.idx)) {
+    if (!byId[p]) continue;
+    if (keep && !keep.has(p)) continue;
+    const dir = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+    const targets = new Set();
+    for (const m of entry.content.matchAll(/\[\[([^\]|#]+)/g)) {
+      const t = byBase[m[1].trim().toLowerCase().replace(/\.md$/, '')];
+      if (t) targets.add(t[0]);
+    }
+    for (const m of entry.content.matchAll(/\]\(([^)#]+\.md)(?:#[^)]*)?\)/gi)) {
+      let raw;
+      try { raw = decodeURI(m[1].trim()); } catch (_) { raw = m[1].trim(); }
+      const resolved = gvResolve(dir, raw);
+      if (S.idx[resolved]) targets.add(resolved);
+      else {
+        const t = byBase[raw.split('/').pop().replace(/\.md$/, '').toLowerCase()];
+        if (t) targets.add(t[0]);
+      }
+    }
+    for (const t of targets) {
+      if (t === p) continue;
+      if (keep && !keep.has(t)) continue;
+      if (!byId[t]) continue;
+      if (seen.has(p + '>' + t) || seen.has(t + '>' + p)) continue;
+      seen.add(p + '>' + t);
+      edges.push({ a: p, b: t, kind: 'link' });
+    }
+  }
+
+  const adj = {};
+  for (const e of edges) {
+    byId[e.a].deg++; byId[e.b].deg++;
+    (adj[e.a] = adj[e.a] || new Set()).add(e.b);
+    (adj[e.b] = adj[e.b] || new Set()).add(e.a);
+  }
+
+  // raio 1 a 10 proporcional ao volume de conteúdo (escala log)
+  const sizeOf = {};
+  (function sizeTree(items) {
+    let total = 0;
+    for (const it of items) {
+      if (it.type === 'dir') {
+        const s = sizeTree(it.children);
+        sizeOf[it.path] = s;
+        total += s;
+      } else {
+        const s = (S.idx[it.path] ? S.idx[it.path].content.length : 0);
+        sizeOf[it.path] = s;
+        total += s;
+      }
+    }
+    return total;
+  })(S.tree);
+  sizeOf['//root'] = Object.keys(S.idx).reduce((a, p) => a + S.idx[p].content.length, 0);
+
+  let lmin = Infinity, lmax = -Infinity;
+  for (const n of nodes) {
+    n.size = sizeOf[n.id] || 0;
+    const l = Math.log(n.size + 1);
+    if (l < lmin) lmin = l;
+    if (l > lmax) lmax = l;
+  }
+  for (const n of nodes) {
+    const t = lmax > lmin ? (Math.log(n.size + 1) - lmin) / (lmax - lmin) : 0.5;
+    n.r = 1 + 9 * t;
+  }
+
+  GV.nodes = nodes; GV.edges = edges; GV.byId = byId; GV.adj = adj;
+  if (GV.opts.layout !== 'radial') gvApplyLayout();
+}
+
+// centraliza os alvos na origem e zera velocidades
+function gvCenterTargets() {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const n of GV.nodes) {
+    if (n.tx === undefined) continue;
+    minX = Math.min(minX, n.tx); maxX = Math.max(maxX, n.tx);
+    minY = Math.min(minY, n.ty); maxY = Math.max(maxY, n.ty);
+  }
+  if (minX === Infinity) return;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  for (const n of GV.nodes) {
+    if (n.tx === undefined) continue;
+    n.tx -= cx; n.ty -= cy;
+    n.vx = 0; n.vy = 0;
+  }
+  GV.alpha = 0;
+}
+
+// Layout hierárquico: raiz no topo, folhas embaixo (formato pirâmide)
+function gvLayoutPyramid() {
+  if (!GV.nodes.length) return;
+  const gx = GV.opts.gapX, gy = GV.opts.gapY;
+  let leaf = 0;
+
+  function place(items, depth) {
+    const xs = [];
+    for (const it of items) {
+      const n = GV.byId[it.path];
+      if (!n) continue;
+      if (it.type === 'dir' && it.children && it.children.length) {
+        const cx = place(it.children, depth + 1);
+        n.tx = cx; n.ty = depth * gy;
+        xs.push(cx);
+      } else {
+        n.tx = leaf * gx; n.ty = depth * gy;
+        xs.push(n.tx);
+        leaf++;
+      }
+    }
+    return xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : (leaf++) * gx;
+  }
+
+  const rootX = place(S.tree, 1);
+  const root = GV.byId['//root'];
+  if (root) { root.tx = rootX; root.ty = 0; }
+  gvCenterTargets();
+}
+
+// Árvore horizontal: raiz à esquerda, arquivos à direita
+function gvLayoutHTree() {
+  if (!GV.nodes.length) return;
+  const gx = GV.opts.gapX, gy = GV.opts.gapY;
+  let leaf = 0;
+
+  function place(items, depth) {
+    const ys = [];
+    for (const it of items) {
+      const n = GV.byId[it.path];
+      if (!n) continue;
+      if (it.type === 'dir' && it.children && it.children.length) {
+        const cy = place(it.children, depth + 1);
+        n.tx = depth * gy * 1.5; n.ty = cy;
+        ys.push(cy);
+      } else {
+        n.tx = depth * gy * 1.5; n.ty = leaf * gx;
+        ys.push(n.ty);
+        leaf++;
+      }
+    }
+    return ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : (leaf++) * gx;
+  }
+
+  const rootY = place(S.tree, 1);
+  const root = GV.byId['//root'];
+  if (root) { root.tx = 0; root.ty = rootY; }
+  gvCenterTargets();
+}
+
+// Árvore radial: raiz no centro, níveis em anéis concêntricos
+function gvLayoutRadialTree() {
+  if (!GV.nodes.length) return;
+  const ringGap = GV.opts.gapY;
+  let leaves = 0;
+  (function count(items) {
+    for (const it of items) {
+      if (!GV.byId[it.path]) continue;
+      if (it.type === 'dir' && it.children && it.children.length) count(it.children);
+      else leaves++;
+    }
+  })(S.tree);
+  if (!leaves) leaves = 1;
+  const step = 2 * Math.PI / leaves;
+  let leaf = 0;
+
+  function place(items, depth) {
+    const angs = [];
+    for (const it of items) {
+      const n = GV.byId[it.path];
+      if (!n) continue;
+      let ang;
+      if (it.type === 'dir' && it.children && it.children.length) {
+        ang = place(it.children, depth + 1);
+      } else {
+        ang = leaf * step;
+        leaf++;
+      }
+      n.tx = Math.cos(ang) * depth * ringGap;
+      n.ty = Math.sin(ang) * depth * ringGap;
+      angs.push(ang);
+    }
+    return angs.length ? (Math.min(...angs) + Math.max(...angs)) / 2 : (leaf++) * step;
+  }
+
+  place(S.tree, 1);
+  const root = GV.byId['//root'];
+  if (root) { root.tx = 0; root.ty = 0; }
+  gvCenterTargets();
+}
+
+// Círculo: raiz no centro, demais nós num anel único na ordem da árvore
+function gvLayoutCircle() {
+  if (!GV.nodes.length) return;
+  const order = [];
+  (function walk(items) {
+    for (const it of items) {
+      if (!GV.byId[it.path]) continue;
+      order.push(it.path);
+      if (it.type === 'dir' && it.children && it.children.length) walk(it.children);
+    }
+  })(S.tree);
+  if (!order.length) return;
+  const rad = Math.max(140, order.length * GV.opts.gapX / (2 * Math.PI));
+  order.forEach((p, i) => {
+    const n = GV.byId[p];
+    if (!n) return;
+    const a = i / order.length * 2 * Math.PI - Math.PI / 2;
+    n.tx = Math.cos(a) * rad;
+    n.ty = Math.sin(a) * rad;
+  });
+  const root = GV.byId['//root'];
+  if (root) { root.tx = 0; root.ty = 0; }
+  gvCenterTargets();
+}
+
+// Grade: nós em grade na ordem da árvore (pastas seguidas dos seus arquivos)
+function gvLayoutGrid() {
+  if (!GV.nodes.length) return;
+  const order = ['//root'];
+  (function walk(items) {
+    for (const it of items) {
+      if (!GV.byId[it.path]) continue;
+      order.push(it.path);
+      if (it.type === 'dir' && it.children && it.children.length) walk(it.children);
+    }
+  })(S.tree);
+  const cw = GV.opts.gapX * 1.8, ch = GV.opts.gapY * 0.7;
+  const cols = Math.max(2, Math.ceil(Math.sqrt(order.length * 1.6)));
+  order.forEach((p, i) => {
+    const n = GV.byId[p];
+    if (!n) return;
+    n.tx = (i % cols) * cw;
+    n.ty = Math.floor(i / cols) * ch;
+  });
+  gvCenterTargets();
+}
+
+// animação suave até a posição alvo (layouts estáticos)
+// + repulsão local: afasta nós próximos sem destruir o layout
+function gvLerp() {
+  for (const n of GV.nodes) {
+    if (n === GV.dragN || n.tx === undefined) continue;
+    n.x += (n.tx - n.x) * 0.15;
+    n.y += (n.ty - n.y) * 0.15;
+  }
+  const k = GV.opts.repulsion / 1400;
+  if (k <= 0) return;
+  const range = 150, N = GV.nodes;
+  for (let i = 0; i < N.length; i++) {
+    const ni = N[i];
+    for (let j = i + 1; j < N.length; j++) {
+      const nj = N[j];
+      let dx = nj.x - ni.x, dy = nj.y - ni.y;
+      let d2 = dx * dx + dy * dy;
+      if (d2 > range * range) continue;
+      if (d2 < 0.01) { dx = Math.random() - .5; dy = Math.random() - .5; d2 = dx * dx + dy * dy; }
+      const d = Math.sqrt(d2);
+      const f = k * 2 * (1 - d / range);
+      const fx = dx / d * f, fy = dy / d * f;
+      if (ni !== GV.dragN) { ni.x -= fx; ni.y -= fy; }
+      if (nj !== GV.dragN) { nj.x += fx; nj.y += fy; }
+    }
+  }
+}
+
+function gvR(n) {
+  return n.r || 4;
+}
+
+function gvTick() {
+  const N = GV.nodes, a = GV.alpha;
+
+  // repulsão entre nós
+  for (let i = 0; i < N.length; i++) {
+    const ni = N[i];
+    for (let j = i + 1; j < N.length; j++) {
+      const nj = N[j];
+      let dx = nj.x - ni.x, dy = nj.y - ni.y;
+      let d2 = dx * dx + dy * dy;
+      if (d2 < 0.01) { dx = Math.random() - .5; dy = Math.random() - .5; d2 = dx * dx + dy * dy; }
+      if (d2 > 160000) continue;
+      const d = Math.sqrt(d2);
+      const f = GV.opts.repulsion / d2 * a;
+      const fx = dx / d * f, fy = dy / d * f;
+      ni.vx -= fx; ni.vy -= fy;
+      nj.vx += fx; nj.vy += fy;
+    }
+  }
+
+  // molas nas arestas
+  for (const e of GV.edges) {
+    if (e.kind === 'link' && !GV.opts.showLinks) continue;
+    const na = GV.byId[e.a], nb = GV.byId[e.b];
+    const rest = e.kind === 'tree' ? GV.opts.linkDist * 0.6 : GV.opts.linkDist;
+    const dx = nb.x - na.x, dy = nb.y - na.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const f = (d - rest) * 0.04 * a;
+    const fx = dx / d * f, fy = dy / d * f;
+    na.vx += fx; na.vy += fy;
+    nb.vx -= fx; nb.vy -= fy;
+  }
+
+  // gravidade central + integração
+  for (const n of N) {
+    if (n === GV.dragN) { n.vx = 0; n.vy = 0; continue; }
+    n.vx -= n.x * 0.004 * a;
+    n.vy -= n.y * 0.004 * a;
+    n.vx *= 0.85; n.vy *= 0.85;
+    n.x += n.vx; n.y += n.vy;
+  }
+
+  GV.alpha *= 0.985;
+  if (GV.alpha < 0.005) GV.alpha = 0;
+}
+
+function gvLoop() {
+  if (GV.opts.layout !== 'radial') gvLerp();
+  else if (GV.alpha > 0) gvTick();
+  gvDraw();
+  GV.raf = requestAnimationFrame(gvLoop);
+}
+
+function gvDraw() {
+  const c = GV.ctx, k = GV.cam.k;
+  if (!c) return;
+  c.setTransform(GV.dpr, 0, 0, GV.dpr, 0, 0);
+  c.clearRect(0, 0, GV.w, GV.h);
+  c.fillStyle = '#0d1117';
+  c.fillRect(0, 0, GV.w, GV.h);
+
+  if (!GV.nodes.length) {
+    c.fillStyle = '#484f58';
+    c.font = '13px sans-serif';
+    c.textAlign = 'center';
+    c.fillText('Abra uma pasta para visualizar o grafo', GV.w / 2, GV.h / 2);
+    return;
+  }
+
+  c.translate(GV.w / 2 + GV.cam.x, GV.h / 2 + GV.cam.y);
+  c.scale(k, k);
+
+  const hl = GV.hover ? GV.adj[GV.hover.id] : null;
+
+  // arestas
+  for (const e of GV.edges) {
+    if (e.kind === 'link' && !GV.opts.showLinks) continue;
+    const na = GV.byId[e.a], nb = GV.byId[e.b];
+    let col;
+    if (GV.hover) {
+      col = (e.a === GV.hover.id || e.b === GV.hover.id)
+        ? (e.kind === 'tree' ? 'rgba(230,237,243,.65)' : 'rgba(88,166,255,.9)')
+        : 'rgba(139,148,158,.07)';
+    } else {
+      col = e.kind === 'tree' ? 'rgba(139,148,158,.28)' : 'rgba(88,166,255,.5)';
+    }
+    c.strokeStyle = col;
+    c.lineWidth = 1 / k;
+    c.beginPath();
+    c.moveTo(na.x, na.y);
+    c.lineTo(nb.x, nb.y);
+    c.stroke();
+  }
+
+  // nós
+  for (const n of GV.nodes) {
+    const r = gvR(n);
+    const isActive = n.id === S.active;
+    const isHover = n === GV.hover;
+    const dim = GV.hover && !isHover && !(hl && hl.has(n.id));
+    c.globalAlpha = dim ? 0.15 : 1;
+
+    c.fillStyle = GV_COLORS[n.type];
+    c.beginPath();
+    c.arc(n.x, n.y, r, 0, Math.PI * 2);
+    c.fill();
+
+    if (isActive) {
+      c.strokeStyle = GV_COLORS.active;
+      c.lineWidth = 2 / k;
+      c.beginPath();
+      c.arc(n.x, n.y, r + 3 / k, 0, Math.PI * 2);
+      c.stroke();
+    }
+
+    if (GV.flash === n.id) {
+      const pulse = 5 + Math.sin(Date.now() / 140) * 2.5;
+      c.strokeStyle = '#d29922';
+      c.lineWidth = 2.5 / k;
+      c.beginPath();
+      c.arc(n.x, n.y, r + pulse / k, 0, Math.PI * 2);
+      c.stroke();
+    }
+
+    const showLabel = isHover || isActive || GV.opts.labels || k > 1.6 || (hl && hl.has(n.id));
+    if (showLabel) {
+      const fs = 11 / k;
+      c.font = `${fs}px sans-serif`;
+      c.textAlign = 'center';
+      c.fillStyle = (isHover || isActive) ? '#e6edf3' : GV_COLORS.label;
+      let labelText = n.label;
+      if (n.type === 'file') {
+        const fileEntry = S.idx[n.id];
+        if (fileEntry && fileEntry.score !== undefined) {
+          labelText = `${n.label} (${fileEntry.score}%)`;
+        }
+      }
+      c.fillText(labelText, n.x, n.y + r + fs + 2 / k);
+    }
+    c.globalAlpha = 1;
+  }
+}
+
+function gvWorld(e) {
+  const rect = GV.canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  return {
+    sx, sy,
+    x: (sx - GV.w / 2 - GV.cam.x) / GV.cam.k,
+    y: (sy - GV.h / 2 - GV.cam.y) / GV.cam.k,
+  };
+}
+
+function gvHit(w) {
+  let best = null, bd = Infinity;
+  for (const n of GV.nodes) {
+    const dx = n.x - w.x, dy = n.y - w.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const hr = gvR(n) + 6 / GV.cam.k;
+    if (d < hr && d < bd) { best = n; bd = d; }
+  }
+  return best;
+}
+
+function gvDown(e) {
+  if (e.button !== 0) return;
+  document.getElementById('graph-menu').style.display = 'none';
+  const n = gvHit(gvWorld(e));
+  GV.moved = false;
+  GV.px = e.clientX; GV.py = e.clientY;
+  if (n) { GV.dragN = n; gvWarm(0.3); }
+  else { GV.panning = true; GV.canvas.classList.add('grabbing'); }
+}
+
+function gvMove(e) {
+  if (GV.dragN) {
+    const w = gvWorld(e);
+    GV.dragN.x = w.x; GV.dragN.y = w.y;
+    if (GV.opts.layout !== 'radial') { GV.dragN.tx = w.x; GV.dragN.ty = w.y; }
+    else gvWarm(0.3);
+    if (Math.abs(e.clientX - GV.px) + Math.abs(e.clientY - GV.py) > 3) GV.moved = true;
+  } else if (GV.panning) {
+    GV.cam.x += e.clientX - GV.px;
+    GV.cam.y += e.clientY - GV.py;
+    GV.px = e.clientX; GV.py = e.clientY;
+    GV.moved = true;
+  } else if (S.view === 'graph' && GV.canvas) {
+    if (e.target === GV.canvas) {
+      GV.hover = gvHit(gvWorld(e));
+      GV.canvas.style.cursor = GV.hover ? 'pointer' : 'grab';
+    } else {
+      GV.hover = null;
+    }
+  }
+}
+
+function gvUp() {
+  if (GV.dragN) {
+    const n = GV.dragN;
+    GV.dragN = null;
+    if (!GV.moved && n.type === 'file') openFile(n.id);
+  }
+  if (GV.panning) {
+    GV.panning = false;
+    GV.canvas.classList.remove('grabbing');
+  }
+}
+
+function gvDbl(e) {
+  const n = gvHit(gvWorld(e));
+  if (n && n.type === 'file') { openFile(n.id); setView('split'); }
+}
+
+function gvWheel(e) {
+  e.preventDefault();
+  const w = gvWorld(e);
+  const nk = Math.max(0.15, Math.min(6, GV.cam.k * Math.exp(-e.deltaY * 0.0012)));
+  GV.cam.x = w.sx - GV.w / 2 - w.x * nk;
+  GV.cam.y = w.sy - GV.h / 2 - w.y * nk;
+  GV.cam.k = nk;
+}
+
+// ============================================================
+//  SIDEBAR RESIZE
+// ============================================================
+function initResize() {
+  const h   = document.getElementById('rhandle');
+  const sb  = document.getElementById('sidebar');
+  let dragging = false, startX = 0, startW = 0;
+  h.addEventListener('mousedown', e => {
+    dragging = true; startX = e.clientX; startW = sb.offsetWidth;
+    h.classList.add('drag');
+    document.body.style.cssText += ';cursor:col-resize;user-select:none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    sb.style.width = Math.max(160, Math.min(520, startW + e.clientX - startX)) + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    h.classList.remove('drag');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    S.editor?.refresh();
+  });
+}
+</script>
+</body>
+</html>
